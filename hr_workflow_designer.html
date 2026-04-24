@@ -1,0 +1,944 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); font-size: 14px; color: var(--color-text-primary); }
+  
+  .app { display: flex; flex-direction: column; height: 640px; background: var(--color-background-tertiary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  
+  .topbar { background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary); padding: 0 16px; height: 48px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .topbar-title { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .topbar-title .dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; }
+  .topbar-actions { display: flex; gap: 6px; }
+  .btn { padding: 5px 12px; font-size: 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; background: var(--color-background-primary); color: var(--color-text-primary); transition: background 0.15s; font-family: var(--font-sans); }
+  .btn:hover { background: var(--color-background-secondary); }
+  .btn.primary { background: #185FA5; color: white; border-color: #185FA5; }
+  .btn.primary:hover { background: #0C447C; }
+  .btn.danger { color: #A32D2D; border-color: #A32D2D; }
+  .btn.danger:hover { background: #FCEBEB; }
+  .btn.success { background: #0F6E56; color: white; border-color: #0F6E56; }
+  .btn.success:hover { background: #085041; }
+  
+  .workspace { display: flex; flex: 1; overflow: hidden; }
+  
+  .sidebar { width: 180px; background: var(--color-background-primary); border-right: 0.5px solid var(--color-border-tertiary); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  .sidebar-section { padding: 12px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .sidebar-label { font-size: 10px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .node-palette { display: flex; flex-direction: column; gap: 6px; }
+  .palette-node { padding: 8px 10px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); cursor: grab; display: flex; align-items: center; gap: 8px; font-size: 12px; background: var(--color-background-primary); transition: all 0.15s; user-select: none; }
+  .palette-node:hover { background: var(--color-background-secondary); border-color: var(--color-border-secondary); transform: translateY(-1px); }
+  .palette-node:active { cursor: grabbing; transform: scale(0.97); }
+  .node-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+  
+  .canvas-area { flex: 1; position: relative; overflow: hidden; }
+  .canvas-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .canvas-svg line, .canvas-svg path { pointer-events: stroke; }
+  .canvas-nodes { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  
+  .workflow-node { position: absolute; cursor: move; user-select: none; }
+  .workflow-node-inner { background: var(--color-background-primary); border: 1.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 10px 14px; min-width: 140px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); transition: border-color 0.15s, box-shadow 0.15s; position: relative; }
+  .workflow-node.selected .workflow-node-inner { border-color: #378ADD; box-shadow: 0 0 0 3px rgba(55,138,221,0.15); }
+  .workflow-node.error .workflow-node-inner { border-color: #E24B4A; }
+  .node-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .node-type-badge { font-size: 9px; font-weight: 500; padding: 2px 5px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .node-title { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+  .node-sub { font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; }
+  .port { position: absolute; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white; cursor: crosshair; z-index: 10; transition: transform 0.1s; }
+  .port:hover { transform: scale(1.4); }
+  .port-in { left: 50%; transform: translateX(-50%); top: -5px; }
+  .port-out { left: 50%; transform: translateX(-50%); bottom: -5px; }
+  .port-in:hover { transform: translateX(-50%) scale(1.4); }
+  .port-out:hover { transform: translateX(-50%) scale(1.4); }
+  .node-delete { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #E24B4A; color: white; font-size: 10px; display: none; align-items: center; justify-content: center; cursor: pointer; border: none; font-family: var(--font-sans); z-index: 20; }
+  .workflow-node.selected .node-delete { display: flex; }
+  
+  .right-panel { width: 220px; background: var(--color-background-primary); border-left: 0.5px solid var(--color-border-tertiary); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  .panel-header { padding: 12px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .panel-title { font-size: 12px; font-weight: 500; }
+  .panel-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+  .config-form { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .form-field { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 11px; color: var(--color-text-secondary); font-weight: 500; }
+  .form-input { padding: 6px 8px; font-size: 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); font-family: var(--font-sans); width: 100%; }
+  .form-input:focus { outline: none; border-color: #378ADD; box-shadow: 0 0 0 2px rgba(55,138,221,0.15); }
+  .form-select { padding: 6px 8px; font-size: 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); font-family: var(--font-sans); width: 100%; cursor: pointer; }
+  .form-error { font-size: 10px; color: #A32D2D; }
+  .form-save { width: 100%; margin-top: 4px; }
+  .empty-panel { padding: 24px 12px; text-align: center; color: var(--color-text-tertiary); font-size: 11px; }
+  .kv-row { display: flex; gap: 4px; margin-bottom: 4px; }
+  .kv-row input { flex: 1; }
+  .kv-add { font-size: 11px; color: #185FA5; cursor: pointer; background: none; border: none; font-family: var(--font-sans); padding: 0; }
+  
+  .bottom-panel { height: 160px; background: var(--color-background-primary); border-top: 0.5px solid var(--color-border-tertiary); display: flex; flex-direction: column; flex-shrink: 0; }
+  .bottom-tabs { display: flex; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .tab { padding: 8px 16px; font-size: 11px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--color-text-secondary); background: none; border-top: none; border-left: none; border-right: none; font-family: var(--font-sans); }
+  .tab.active { color: #185FA5; border-bottom-color: #185FA5; }
+  .bottom-content { flex: 1; overflow-y: auto; padding: 8px 12px; }
+  .log-entry { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 11px; }
+  .log-step { font-size: 10px; font-weight: 500; color: var(--color-text-tertiary); min-width: 50px; }
+  .log-msg { color: var(--color-text-primary); }
+  .log-status { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+  .status-ok { background: #EAF3DE; color: #3B6D11; }
+  .status-err { background: #FCEBEB; color: #A32D2D; }
+  .status-warn { background: #FAEEDA; color: #854F0B; }
+  .validation-item { display: flex; gap: 6px; padding: 4px 0; font-size: 11px; align-items: center; }
+  .val-icon { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 9px; }
+  .val-ok { background: #EAF3DE; color: #3B6D11; }
+  .val-err { background: #FCEBEB; color: #A32D2D; }
+  
+  .minimap { position: absolute; bottom: 8px; right: 8px; width: 90px; height: 60px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); overflow: hidden; opacity: 0.85; }
+  .minimap-node { position: absolute; border-radius: 2px; opacity: 0.7; }
+  
+  .canvas-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; color: var(--color-text-tertiary); font-size: 12px; pointer-events: none; }
+  
+  .toolbar-btn { padding: 4px 8px; font-size: 11px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); cursor: pointer; background: var(--color-background-primary); color: var(--color-text-secondary); transition: background 0.15s; font-family: var(--font-sans); }
+  .toolbar-btn:hover { background: var(--color-background-secondary); }
+  .toolbar-btn.active { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-border-info); }
+  .toolbar { display: flex; gap: 4px; align-items: center; }
+  
+  .edge-path { fill: none; stroke: var(--color-border-secondary); stroke-width: 1.5; }
+  .edge-path.selected { stroke: #378ADD; }
+  .edge-path:hover { stroke: #378ADD; cursor: pointer; }
+  .edge-arrow { fill: var(--color-border-secondary); }
+</style>
+
+<h2 class="sr-only">HR Workflow Designer — visual drag-and-drop workflow builder for HR processes</h2>
+
+<div class="app" id="app">
+  <div class="topbar">
+    <div class="topbar-title">
+      <span class="dot"></span>
+      <span>HR Workflow Designer</span>
+      <span id="workflow-name-display" style="color:var(--color-text-tertiary);font-weight:400">— Untitled Workflow</span>
+    </div>
+    <div class="toolbar">
+      <button class="toolbar-btn" id="undo-btn" title="Undo">↩ Undo</button>
+      <button class="toolbar-btn" id="redo-btn" title="Redo">↪ Redo</button>
+      <button class="toolbar-btn" id="export-btn">Export JSON</button>
+      <button class="toolbar-btn" id="import-btn">Import JSON</button>
+      <button class="btn success" id="simulate-btn">Run Simulation</button>
+    </div>
+  </div>
+  
+  <div class="workspace">
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Node Types</div>
+        <div class="node-palette">
+          <div class="palette-node" draggable="true" data-type="start">
+            <div class="node-icon" style="background:#EAF3DE;color:#3B6D11;font-size:12px">S</div>
+            <span>Start</span>
+          </div>
+          <div class="palette-node" draggable="true" data-type="task">
+            <div class="node-icon" style="background:#E6F1FB;color:#185FA5;font-size:12px">T</div>
+            <span>Task</span>
+          </div>
+          <div class="palette-node" draggable="true" data-type="approval">
+            <div class="node-icon" style="background:#FAEEDA;color:#854F0B;font-size:12px">A</div>
+            <span>Approval</span>
+          </div>
+          <div class="palette-node" draggable="true" data-type="automated">
+            <div class="node-icon" style="background:#EEEDFE;color:#534AB7;font-size:12px">⚡</div>
+            <span>Automated</span>
+          </div>
+          <div class="palette-node" draggable="true" data-type="end">
+            <div class="node-icon" style="background:#FCEBEB;color:#A32D2D;font-size:12px">E</div>
+            <span>End</span>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Workflow</div>
+        <div style="font-size:11px;color:var(--color-text-tertiary);line-height:1.6">
+          <p>Drag nodes to canvas</p>
+          <p>Click ports to connect</p>
+          <p>Click node to configure</p>
+          <p>Select to delete</p>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Stats</div>
+        <div id="stats" style="font-size:11px;color:var(--color-text-secondary);line-height:1.8"></div>
+      </div>
+    </div>
+    
+    <div class="canvas-area" id="canvas">
+      <svg class="canvas-svg" id="edges-svg">
+        <defs>
+          <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#888780"/>
+          </marker>
+          <marker id="arrow-blue" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 z" fill="#378ADD"/>
+          </marker>
+        </defs>
+      </svg>
+      <div class="canvas-nodes" id="nodes-container"></div>
+      <div class="canvas-hint" id="canvas-hint">
+        <div style="font-size:28px;margin-bottom:8px;opacity:0.3">⊕</div>
+        <div>Drag node types from the sidebar</div>
+        <div style="margin-top:4px;font-size:11px">to start building your workflow</div>
+      </div>
+      <div class="minimap" id="minimap">
+        <svg width="90" height="60" id="minimap-svg"></svg>
+      </div>
+    </div>
+    
+    <div class="right-panel" id="right-panel">
+      <div class="panel-header">
+        <div class="panel-title">Configuration</div>
+        <div class="panel-sub" id="panel-sub">Select a node to configure</div>
+      </div>
+      <div id="config-content">
+        <div class="empty-panel">
+          <div style="font-size:24px;opacity:0.3;margin-bottom:8px">☰</div>
+          <div>Select a node on the canvas to configure its properties</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bottom-panel">
+    <div class="bottom-tabs">
+      <button class="tab active" data-tab="logs">Simulation Log</button>
+      <button class="tab" data-tab="validation">Validation</button>
+      <button class="tab" data-tab="json">JSON Preview</button>
+    </div>
+    <div class="bottom-content" id="bottom-content">
+      <div style="color:var(--color-text-tertiary);font-size:11px;padding:8px 0">Run simulation to see execution log...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const AUTOMATIONS = [
+  { id: 'send_email', label: 'Send Email', params: ['to', 'subject', 'body'] },
+  { id: 'generate_doc', label: 'Generate Document', params: ['template', 'recipient'] },
+  { id: 'notify_slack', label: 'Notify Slack', params: ['channel', 'message'] },
+  { id: 'create_ticket', label: 'Create Ticket', params: ['title', 'priority'] },
+  { id: 'update_hris', label: 'Update HRIS', params: ['field', 'value'] },
+];
+
+const NODE_COLORS = {
+  start: { bg: '#EAF3DE', border: '#639922', text: '#3B6D11', badge: 'Start' },
+  task: { bg: '#E6F1FB', border: '#378ADD', text: '#185FA5', badge: 'Task' },
+  approval: { bg: '#FAEEDA', border: '#EF9F27', text: '#854F0B', badge: 'Approval' },
+  automated: { bg: '#EEEDFE', border: '#7F77DD', text: '#534AB7', badge: 'Auto' },
+  end: { bg: '#FCEBEB', border: '#E24B4A', text: '#A32D2D', badge: 'End' },
+};
+
+const DEFAULT_CONFIGS = {
+  start: { title: 'Start', metadata: [] },
+  task: { title: 'New Task', description: '', assignee: '', dueDate: '', customFields: [] },
+  approval: { title: 'Approval Required', approverRole: 'Manager', autoApproveThreshold: 0 },
+  automated: { title: 'Automated Step', action: 'send_email', params: {} },
+  end: { title: 'End', endMessage: 'Workflow completed', showSummary: true },
+};
+
+let state = {
+  nodes: [],
+  edges: [],
+  selectedNodeId: null,
+  selectedEdgeId: null,
+  connecting: null,
+  dragging: null,
+  dragOffset: { x: 0, y: 0 },
+  history: [],
+  historyIndex: -1,
+  activeTab: 'logs',
+  simulationLogs: [],
+  workflowName: 'Untitled Workflow',
+};
+
+let nodeCounter = 0;
+let edgeCounter = 0;
+
+function generateId(prefix) {
+  return `${prefix}_${++nodeCounter}_${Date.now().toString(36)}`;
+}
+
+function pushHistory() {
+  const snapshot = JSON.stringify({ nodes: state.nodes, edges: state.edges });
+  state.history = state.history.slice(0, state.historyIndex + 1);
+  state.history.push(snapshot);
+  state.historyIndex = state.history.length - 1;
+}
+
+function undo() {
+  if (state.historyIndex > 0) {
+    state.historyIndex--;
+    const snapshot = JSON.parse(state.history[state.historyIndex]);
+    state.nodes = snapshot.nodes;
+    state.edges = snapshot.edges;
+    state.selectedNodeId = null;
+    render();
+  }
+}
+
+function redo() {
+  if (state.historyIndex < state.history.length - 1) {
+    state.historyIndex++;
+    const snapshot = JSON.parse(state.history[state.historyIndex]);
+    state.nodes = snapshot.nodes;
+    state.edges = snapshot.edges;
+    state.selectedNodeId = null;
+    render();
+  }
+}
+
+function addNode(type, x, y) {
+  pushHistory();
+  const node = {
+    id: generateId('node'),
+    type,
+    x, y,
+    config: JSON.parse(JSON.stringify(DEFAULT_CONFIGS[type])),
+    hasError: false,
+  };
+  state.nodes.push(node);
+  render();
+}
+
+function deleteNode(id) {
+  pushHistory();
+  state.nodes = state.nodes.filter(n => n.id !== id);
+  state.edges = state.edges.filter(e => e.source !== id && e.target !== id);
+  if (state.selectedNodeId === id) state.selectedNodeId = null;
+  render();
+}
+
+function deleteEdge(id) {
+  pushHistory();
+  state.edges = state.edges.filter(e => e.id !== id);
+  render();
+}
+
+function selectNode(id) {
+  state.selectedNodeId = id;
+  state.selectedEdgeId = null;
+  render();
+  renderConfigPanel();
+}
+
+function getNodeById(id) {
+  return state.nodes.find(n => n.id === id);
+}
+
+function getPortCenter(nodeId, port) {
+  const node = getNodeById(nodeId);
+  if (!node) return null;
+  const el = document.querySelector(`[data-node-id="${nodeId}"]`);
+  if (!el) return { x: node.x + 70, y: port === 'out' ? node.y + 60 : node.y };
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  return {
+    x: node.x + w / 2,
+    y: port === 'out' ? node.y + h : node.y,
+  };
+}
+
+function canConnect(sourceId, targetId) {
+  if (sourceId === targetId) return false;
+  if (state.edges.find(e => e.source === sourceId && e.target === targetId)) return false;
+  if (hasCycle(sourceId, targetId)) return false;
+  return true;
+}
+
+function hasCycle(newSource, newTarget) {
+  const adj = {};
+  state.edges.forEach(e => {
+    if (!adj[e.source]) adj[e.source] = [];
+    adj[e.source].push(e.target);
+  });
+  if (!adj[newSource]) adj[newSource] = [];
+  adj[newSource].push(newTarget);
+  const visited = new Set();
+  function dfs(node) {
+    if (visited.has(node)) return true;
+    visited.add(node);
+    const neighbors = adj[node] || [];
+    for (const n of neighbors) {
+      if (dfs(n)) return true;
+    }
+    visited.delete(node);
+    return false;
+  }
+  return dfs(newTarget) && state.nodes.some(n => n.id === newTarget);
+}
+
+function validate() {
+  const errors = [];
+  const warnings = [];
+  const startNodes = state.nodes.filter(n => n.type === 'start');
+  const endNodes = state.nodes.filter(n => n.type === 'end');
+  if (startNodes.length === 0) errors.push('No Start node found');
+  if (startNodes.length > 1) errors.push('Only one Start node allowed');
+  if (endNodes.length === 0) warnings.push('No End node found');
+  if (state.nodes.length === 0) errors.push('Canvas is empty');
+  
+  state.nodes.forEach(n => {
+    const incoming = state.edges.filter(e => e.target === n.id).length;
+    const outgoing = state.edges.filter(e => e.source === n.id).length;
+    if (n.type !== 'start' && incoming === 0) warnings.push(`"${n.config.title}" has no incoming connection`);
+    if (n.type !== 'end' && outgoing === 0) warnings.push(`"${n.config.title}" has no outgoing connection`);
+    if (!n.config.title) errors.push(`A ${n.type} node has no title`);
+  });
+
+  state.nodes.forEach(n => { n.hasError = false; });
+  errors.forEach(err => {
+    const match = state.nodes.find(n => err.includes(n.config.title));
+    if (match) match.hasError = true;
+  });
+
+  return { errors, warnings, valid: errors.length === 0 };
+}
+
+function simulateWorkflow() {
+  const { errors, valid } = validate();
+  if (!valid) {
+    state.simulationLogs = [{ step: 'Error', msg: 'Fix validation errors before simulating', status: 'err' }];
+    errors.forEach(e => state.simulationLogs.push({ step: '—', msg: e, status: 'err' }));
+    state.activeTab = 'logs';
+    renderBottomPanel();
+    return;
+  }
+
+  const logs = [];
+  const adj = {};
+  state.edges.forEach(e => {
+    if (!adj[e.source]) adj[e.source] = [];
+    adj[e.source].push(e.target);
+  });
+
+  const startNode = state.nodes.find(n => n.type === 'start');
+  let queue = [startNode.id];
+  const visited = new Set();
+  let stepNum = 1;
+
+  logs.push({ step: 'Init', msg: `Starting workflow simulation`, status: 'ok' });
+
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const node = getNodeById(id);
+    if (!node) continue;
+
+    const msgs = {
+      start: () => `Triggered: ${node.config.title}`,
+      task: () => `Assigned task "${node.config.title}" to ${node.config.assignee || 'unassigned'}`,
+      approval: () => `Awaiting approval from ${node.config.approverRole} for "${node.config.title}"`,
+      automated: () => `Executing automation: ${AUTOMATIONS.find(a => a.id === node.config.action)?.label || node.config.action}`,
+      end: () => `${node.config.endMessage || 'Workflow completed'}`,
+    };
+
+    logs.push({ step: `Step ${stepNum++}`, msg: msgs[node.type]?.() || `Processing ${node.type}`, status: 'ok', type: node.type });
+
+    if (node.type === 'approval') {
+      const threshold = Number(node.config.autoApproveThreshold) || 0;
+      if (threshold > 0) logs.push({ step: '—', msg: `Auto-approval threshold: ${threshold}%`, status: 'warn' });
+    }
+    if (node.type === 'automated') {
+      const auto = AUTOMATIONS.find(a => a.id === node.config.action);
+      if (auto) {
+        const filledParams = auto.params.filter(p => node.config.params && node.config.params[p]);
+        logs.push({ step: '—', msg: `Parameters: ${auto.params.map(p => `${p}=${node.config.params?.[p] || '(empty)'}`).join(', ')}`, status: filledParams.length === auto.params.length ? 'ok' : 'warn' });
+      }
+    }
+
+    (adj[id] || []).forEach(nid => { if (!visited.has(nid)) queue.push(nid); });
+  }
+
+  logs.push({ step: 'Done', msg: `Simulation complete — ${stepNum - 1} steps executed`, status: 'ok' });
+  state.simulationLogs = logs;
+  state.activeTab = 'logs';
+  renderBottomPanel();
+}
+
+function exportJSON() {
+  const data = {
+    name: state.workflowName,
+    version: '1.0.0',
+    nodes: state.nodes.map(n => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config })),
+    edges: state.edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${state.workflowName.replace(/\s+/g, '_')}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importJSON() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        pushHistory();
+        state.nodes = data.nodes.map(n => ({ ...n, hasError: false }));
+        state.edges = data.edges || [];
+        state.workflowName = data.name || 'Imported Workflow';
+        state.selectedNodeId = null;
+        render();
+      } catch (err) {
+        alert('Invalid JSON file');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function renderNode(node) {
+  const c = NODE_COLORS[node.type];
+  const isSelected = state.selectedNodeId === node.id;
+  const el = document.createElement('div');
+  el.className = `workflow-node${isSelected ? ' selected' : ''}${node.hasError ? ' error' : ''}`;
+  el.dataset.nodeId = node.id;
+  el.style.left = node.x + 'px';
+  el.style.top = node.y + 'px';
+  el.style.zIndex = isSelected ? 100 : 10;
+
+  let configHtml = '';
+  if (node.type === 'task' && node.config.assignee) configHtml = `<div class="node-sub">→ ${node.config.assignee}</div>`;
+  if (node.type === 'approval') configHtml = `<div class="node-sub">${node.config.approverRole || 'Manager'}</div>`;
+  if (node.type === 'automated') {
+    const auto = AUTOMATIONS.find(a => a.id === node.config.action);
+    configHtml = `<div class="node-sub">${auto?.label || node.config.action}</div>`;
+  }
+
+  el.innerHTML = `
+    <button class="node-delete" data-delete="${node.id}">×</button>
+    <div class="workflow-node-inner">
+      <div class="port port-in" style="background:${c.border}" data-port="in" data-node="${node.id}"></div>
+      <div class="node-header">
+        <span class="node-type-badge" style="background:${c.bg};color:${c.text}">${c.badge}</span>
+      </div>
+      <div class="node-title">${escHtml(node.config.title || 'Untitled')}</div>
+      ${configHtml}
+      <div class="port port-out" style="background:${c.border}" data-port="out" data-node="${node.id}"></div>
+    </div>
+  `;
+
+  return el;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderEdges() {
+  const svg = document.getElementById('edges-svg');
+  const paths = [];
+  state.edges.forEach(edge => {
+    const from = getPortCenter(edge.source, 'out');
+    const to = getPortCenter(edge.target, 'in');
+    if (!from || !to) return;
+    const dx = (to.x - from.x) * 0.5;
+    const dy = Math.abs(to.y - from.y) * 0.4 + 30;
+    const d = `M${from.x},${from.y} C${from.x},${from.y + dy} ${to.x},${to.y - dy} ${to.x},${to.y}`;
+    const isSelected = state.selectedEdgeId === edge.id;
+    paths.push(`<path class="edge-path${isSelected ? ' selected' : ''}" d="${d}" marker-end="url(#${isSelected ? 'arrow-blue' : 'arrow'})" data-edge-id="${edge.id}" pointer-events="stroke" style="cursor:pointer;stroke-width:${isSelected?2:1.5}"/>`);
+  });
+  if (state.connecting) {
+    const from = getPortCenter(state.connecting.sourceId, 'out');
+    if (from && state.connecting.currentX !== undefined) {
+      const d = `M${from.x},${from.y} C${from.x},${from.y + 40} ${state.connecting.currentX},${state.connecting.currentY - 40} ${state.connecting.currentX},${state.connecting.currentY}`;
+      paths.push(`<path class="edge-path" d="${d}" stroke-dasharray="4,3" opacity="0.6"/>`);
+    }
+  }
+  svg.innerHTML = svg.querySelector('defs').outerHTML + paths.join('');
+  
+  svg.querySelectorAll('[data-edge-id]').forEach(el => {
+    el.addEventListener('click', e => {
+      const edgeId = el.dataset.edgeId;
+      if (state.selectedEdgeId === edgeId) {
+        deleteEdge(edgeId);
+      } else {
+        state.selectedEdgeId = edgeId;
+        state.selectedNodeId = null;
+        renderEdges();
+      }
+    });
+  });
+}
+
+function renderMinimap() {
+  const svg = document.getElementById('minimap-svg');
+  if (state.nodes.length === 0) { svg.innerHTML = ''; return; }
+  const minX = Math.min(...state.nodes.map(n => n.x));
+  const minY = Math.min(...state.nodes.map(n => n.y));
+  const maxX = Math.max(...state.nodes.map(n => n.x + 140));
+  const maxY = Math.max(...state.nodes.map(n => n.y + 60));
+  const scaleX = 80 / (maxX - minX + 20);
+  const scaleY = 50 / (maxY - minY + 20);
+  const scale = Math.min(scaleX, scaleY, 1);
+  const rects = state.nodes.map(n => {
+    const c = NODE_COLORS[n.type];
+    const x = (n.x - minX) * scale + 5;
+    const y = (n.y - minY) * scale + 5;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(140*scale).toFixed(1)}" height="${(50*scale).toFixed(1)}" rx="2" fill="${c.bg}" stroke="${c.border}" stroke-width="0.5"/>`;
+  });
+  svg.innerHTML = rects.join('');
+}
+
+function renderStats() {
+  const el = document.getElementById('stats');
+  if (!el) return;
+  const { errors, warnings } = validate();
+  el.innerHTML = `
+    <div>Nodes: <strong>${state.nodes.length}</strong></div>
+    <div>Edges: <strong>${state.edges.length}</strong></div>
+    <div style="color:${errors.length?'#A32D2D':'#3B6D11'}">Errors: <strong>${errors.length}</strong></div>
+    <div style="color:${warnings.length?'#854F0B':'var(--color-text-secondary)'}">Warnings: <strong>${warnings.length}</strong></div>
+  `;
+}
+
+function renderConfigPanel() {
+  const panel = document.getElementById('config-content');
+  const sub = document.getElementById('panel-sub');
+  const node = getNodeById(state.selectedNodeId);
+  
+  if (!node) {
+    sub.textContent = 'Select a node to configure';
+    panel.innerHTML = `<div class="empty-panel"><div style="font-size:24px;opacity:0.3;margin-bottom:8px">☰</div><div>Select a node on the canvas to configure its properties</div></div>`;
+    return;
+  }
+  
+  const c = NODE_COLORS[node.type];
+  sub.textContent = `${c.badge} Node`;
+
+  let formHtml = `<div class="config-form">`;
+  formHtml += `<div class="form-field"><label class="form-label">Title *</label><input class="form-input" id="cfg-title" value="${escHtml(node.config.title||'')}" placeholder="Node title"/></div>`;
+
+  if (node.type === 'start') {
+    formHtml += `<div class="form-field"><label class="form-label">Metadata</label>`;
+    (node.config.metadata || []).forEach((kv, i) => {
+      formHtml += `<div class="kv-row"><input class="form-input" id="cfg-meta-key-${i}" value="${escHtml(kv.key||'')}" placeholder="Key" style="flex:1"/><input class="form-input" id="cfg-meta-val-${i}" value="${escHtml(kv.value||'')}" placeholder="Value" style="flex:1"/></div>`;
+    });
+    formHtml += `<button class="kv-add" id="add-meta">+ Add field</button></div>`;
+  }
+
+  if (node.type === 'task') {
+    formHtml += `<div class="form-field"><label class="form-label">Description</label><input class="form-input" id="cfg-desc" value="${escHtml(node.config.description||'')}" placeholder="Task description"/></div>`;
+    formHtml += `<div class="form-field"><label class="form-label">Assignee</label><input class="form-input" id="cfg-assignee" value="${escHtml(node.config.assignee||'')}" placeholder="e.g. HR Manager"/></div>`;
+    formHtml += `<div class="form-field"><label class="form-label">Due Date</label><input class="form-input" type="date" id="cfg-due" value="${escHtml(node.config.dueDate||'')}"/></div>`;
+  }
+
+  if (node.type === 'approval') {
+    formHtml += `<div class="form-field"><label class="form-label">Approver Role</label><select class="form-select" id="cfg-role"><option value="Manager">Manager</option><option value="Director">Director</option><option value="HR Lead">HR Lead</option><option value="VP">VP</option><option value="CEO">CEO</option></select></div>`;
+    formHtml += `<div class="form-field"><label class="form-label">Auto-approve threshold (%)</label><input class="form-input" type="number" id="cfg-threshold" value="${escHtml(String(node.config.autoApproveThreshold||0))}" min="0" max="100"/></div>`;
+  }
+
+  if (node.type === 'automated') {
+    formHtml += `<div class="form-field"><label class="form-label">Action</label><select class="form-select" id="cfg-action">`;
+    AUTOMATIONS.forEach(a => {
+      formHtml += `<option value="${a.id}"${node.config.action===a.id?' selected':''}>${a.label}</option>`;
+    });
+    formHtml += `</select></div>`;
+    const auto = AUTOMATIONS.find(a => a.id === node.config.action) || AUTOMATIONS[0];
+    formHtml += `<div id="auto-params">`;
+    auto.params.forEach(p => {
+      formHtml += `<div class="form-field"><label class="form-label">${p}</label><input class="form-input cfg-param" data-param="${p}" value="${escHtml((node.config.params && node.config.params[p])||'')}" placeholder="${p}"/></div>`;
+    });
+    formHtml += `</div>`;
+  }
+
+  if (node.type === 'end') {
+    formHtml += `<div class="form-field"><label class="form-label">End Message</label><input class="form-input" id="cfg-endmsg" value="${escHtml(node.config.endMessage||'')}" placeholder="Completion message"/></div>`;
+    formHtml += `<div class="form-field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="cfg-summary"${node.config.showSummary?' checked':''}/><label class="form-label" for="cfg-summary">Show summary</label></div>`;
+  }
+
+  formHtml += `<button class="btn primary form-save" id="cfg-save">Save Changes</button>`;
+  formHtml += `</div>`;
+  panel.innerHTML = formHtml;
+
+  if (node.type === 'approval') {
+    const sel = document.getElementById('cfg-role');
+    if (sel) sel.value = node.config.approverRole || 'Manager';
+  }
+
+  const addMeta = document.getElementById('add-meta');
+  if (addMeta) {
+    addMeta.onclick = () => {
+      node.config.metadata = node.config.metadata || [];
+      node.config.metadata.push({ key: '', value: '' });
+      renderConfigPanel();
+    };
+  }
+
+  const actionSel = document.getElementById('cfg-action');
+  if (actionSel) {
+    actionSel.onchange = () => {
+      node.config.action = actionSel.value;
+      node.config.params = {};
+      const auto = AUTOMATIONS.find(a => a.id === actionSel.value);
+      const paramsDiv = document.getElementById('auto-params');
+      if (paramsDiv && auto) {
+        paramsDiv.innerHTML = auto.params.map(p => `<div class="form-field"><label class="form-label">${p}</label><input class="form-input cfg-param" data-param="${p}" value="" placeholder="${p}"/></div>`).join('');
+        paramsDiv.querySelectorAll('.cfg-param').forEach(inp => {
+          inp.addEventListener('input', () => { node.config.params[inp.dataset.param] = inp.value; });
+        });
+      }
+    };
+  }
+
+  document.getElementById('cfg-save').onclick = () => {
+    pushHistory();
+    node.config.title = (document.getElementById('cfg-title')?.value || '').trim();
+    if (!node.config.title) { document.getElementById('cfg-title').style.borderColor = '#E24B4A'; return; }
+    if (node.type === 'task') {
+      node.config.description = document.getElementById('cfg-desc')?.value || '';
+      node.config.assignee = document.getElementById('cfg-assignee')?.value || '';
+      node.config.dueDate = document.getElementById('cfg-due')?.value || '';
+    }
+    if (node.type === 'approval') {
+      node.config.approverRole = document.getElementById('cfg-role')?.value || 'Manager';
+      node.config.autoApproveThreshold = Number(document.getElementById('cfg-threshold')?.value || 0);
+    }
+    if (node.type === 'automated') {
+      node.config.action = document.getElementById('cfg-action')?.value || 'send_email';
+      node.config.params = {};
+      document.querySelectorAll('.cfg-param').forEach(inp => { node.config.params[inp.dataset.param] = inp.value; });
+    }
+    if (node.type === 'end') {
+      node.config.endMessage = document.getElementById('cfg-endmsg')?.value || '';
+      node.config.showSummary = document.getElementById('cfg-summary')?.checked || false;
+    }
+    if (node.type === 'start') {
+      const metas = [];
+      const keys = document.querySelectorAll('[id^="cfg-meta-key-"]');
+      keys.forEach((k, i) => { metas.push({ key: k.value, value: document.getElementById(`cfg-meta-val-${i}`)?.value || '' }); });
+      node.config.metadata = metas;
+    }
+    render();
+    renderConfigPanel();
+  };
+}
+
+function renderBottomPanel() {
+  const content = document.getElementById('bottom-content');
+  if (state.activeTab === 'logs') {
+    if (!state.simulationLogs.length) {
+      content.innerHTML = '<div style="color:var(--color-text-tertiary);font-size:11px;padding:8px 0">Run simulation to see execution log...</div>';
+      return;
+    }
+    content.innerHTML = state.simulationLogs.map(l => `
+      <div class="log-entry">
+        <span class="log-step">${escHtml(l.step)}</span>
+        <span class="log-msg">${escHtml(l.msg)}</span>
+        <span class="log-status status-${l.status}">${l.status === 'ok' ? '✓' : l.status === 'err' ? '✗' : '!'}</span>
+      </div>
+    `).join('');
+  } else if (state.activeTab === 'validation') {
+    const { errors, warnings } = validate();
+    const items = [
+      ...errors.map(e => ({ msg: e, ok: false })),
+      ...warnings.map(w => ({ msg: w, ok: null })),
+      ...(errors.length === 0 && warnings.length === 0 ? [{ msg: 'Workflow is valid', ok: true }] : []),
+    ];
+    content.innerHTML = items.map(item => `
+      <div class="validation-item">
+        <span class="val-icon ${item.ok === true ? 'val-ok' : item.ok === false ? 'val-err' : ''}" style="${item.ok === null ? 'background:#FAEEDA;color:#854F0B' : ''}">${item.ok === true ? '✓' : item.ok === false ? '✗' : '!'}</span>
+        <span style="font-size:11px">${escHtml(item.msg)}</span>
+      </div>
+    `).join('');
+  } else if (state.activeTab === 'json') {
+    const data = {
+      name: state.workflowName,
+      nodes: state.nodes.map(n => ({ id: n.id, type: n.type, x: Math.round(n.x), y: Math.round(n.y), config: n.config })),
+      edges: state.edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+    };
+    content.innerHTML = `<pre style="font-size:10px;font-family:var(--font-mono);color:var(--color-text-secondary);white-space:pre-wrap;word-break:break-all">${escHtml(JSON.stringify(data, null, 2))}</pre>`;
+  }
+}
+
+function render() {
+  const container = document.getElementById('nodes-container');
+  const hint = document.getElementById('canvas-hint');
+  hint.style.display = state.nodes.length ? 'none' : 'block';
+  
+  const existing = {};
+  container.querySelectorAll('[data-node-id]').forEach(el => { existing[el.dataset.nodeId] = el; });
+
+  state.nodes.forEach(node => {
+    const el = renderNode(node);
+    const old = existing[node.id];
+    if (old) { container.replaceChild(el, old); } 
+    else { container.appendChild(el); }
+    delete existing[node.id];
+  });
+
+  Object.values(existing).forEach(el => container.removeChild(el));
+  renderEdges();
+  renderMinimap();
+  renderStats();
+  renderBottomPanel();
+  document.getElementById('workflow-name-display').textContent = `— ${state.workflowName}`;
+}
+
+function setupDragAndDrop() {
+  const canvas = document.getElementById('canvas');
+  
+  document.querySelectorAll('.palette-node').forEach(pal => {
+    pal.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('node-type', pal.dataset.type);
+    });
+  });
+
+  canvas.addEventListener('dragover', e => { e.preventDefault(); });
+  canvas.addEventListener('drop', e => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('node-type');
+    if (!type) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left - 70;
+    const y = e.clientY - rect.top - 30;
+    addNode(type, Math.max(0, x), Math.max(0, y));
+  });
+}
+
+function setupNodeInteraction() {
+  const canvas = document.getElementById('canvas');
+  
+  canvas.addEventListener('mousedown', e => {
+    const delBtn = e.target.closest('[data-delete]');
+    if (delBtn) { deleteNode(delBtn.dataset.delete); return; }
+
+    const portEl = e.target.closest('[data-port]');
+    if (portEl && portEl.dataset.port === 'out') {
+      e.preventDefault();
+      state.connecting = { sourceId: portEl.dataset.node, currentX: undefined, currentY: undefined };
+      return;
+    }
+
+    const nodeEl = e.target.closest('[data-node-id]');
+    if (nodeEl) {
+      const nodeId = nodeEl.dataset.nodeId;
+      if (state.connecting) { return; }
+      e.preventDefault();
+      selectNode(nodeId);
+      const node = getNodeById(nodeId);
+      const rect = nodeEl.getBoundingClientRect();
+      state.dragging = nodeId;
+      state.dragOffset = { x: e.clientX - node.x, y: e.clientY - node.y };
+      return;
+    }
+
+    state.selectedNodeId = null;
+    state.selectedEdgeId = null;
+    render();
+    renderConfigPanel();
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if (state.connecting) {
+      const rect = canvas.getBoundingClientRect();
+      state.connecting.currentX = e.clientX - rect.left;
+      state.connecting.currentY = e.clientY - rect.top;
+      renderEdges();
+      return;
+    }
+    if (state.dragging) {
+      const node = getNodeById(state.dragging);
+      if (!node) return;
+      const canvasRect = canvas.getBoundingClientRect();
+      node.x = Math.max(0, e.clientX - state.dragOffset.x);
+      node.y = Math.max(0, e.clientY - state.dragOffset.y);
+      const el = document.querySelector(`[data-node-id="${state.dragging}"]`);
+      if (el) { el.style.left = node.x + 'px'; el.style.top = node.y + 'px'; }
+      renderEdges();
+      renderMinimap();
+    }
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    if (state.connecting) {
+      const portEl = e.target.closest('[data-port]');
+      if (portEl && portEl.dataset.port === 'in') {
+        const targetId = portEl.dataset.node;
+        const sourceId = state.connecting.sourceId;
+        if (canConnect(sourceId, targetId)) {
+          pushHistory();
+          state.edges.push({ id: generateId('edge'), source: sourceId, target: targetId });
+          render();
+        }
+      }
+      state.connecting = null;
+      renderEdges();
+      return;
+    }
+    if (state.dragging) {
+      state.dragging = null;
+      renderStats();
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (state.connecting) { state.connecting = null; renderEdges(); }
+    if (state.dragging) { state.dragging = null; }
+  });
+}
+
+function setupTabs() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      state.activeTab = tab.dataset.tab;
+      renderBottomPanel();
+    });
+  });
+}
+
+function setupToolbar() {
+  document.getElementById('undo-btn').onclick = undo;
+  document.getElementById('redo-btn').onclick = redo;
+  document.getElementById('export-btn').onclick = exportJSON;
+  document.getElementById('import-btn').onclick = importJSON;
+  document.getElementById('simulate-btn').onclick = simulateWorkflow;
+}
+
+function setupKeyboard() {
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (state.selectedNodeId) deleteNode(state.selectedNodeId);
+      if (state.selectedEdgeId) deleteEdge(state.selectedEdgeId);
+    }
+  });
+}
+
+function loadSampleWorkflow() {
+  state.workflowName = 'Employee Onboarding';
+  state.nodes = [
+    { id: 'start1', type: 'start', x: 145, y: 20, config: { title: 'Onboarding Triggered', metadata: [{key:'trigger',value:'hire_date'}] }, hasError: false },
+    { id: 'task1', type: 'task', x: 145, y: 110, config: { title: 'Setup Accounts', description: 'Create email and system accounts', assignee: 'IT Admin', dueDate: '' }, hasError: false },
+    { id: 'approval1', type: 'approval', x: 145, y: 200, config: { title: 'Manager Approval', approverRole: 'Director', autoApproveThreshold: 0 }, hasError: false },
+    { id: 'auto1', type: 'automated', x: 145, y: 290, config: { title: 'Send Welcome Email', action: 'send_email', params: { to: 'new_employee@co.com', subject: 'Welcome aboard!', body: 'We are excited...' } }, hasError: false },
+    { id: 'end1', type: 'end', x: 145, y: 380, config: { title: 'Onboarding Complete', endMessage: 'Employee onboarding finished successfully', showSummary: true }, hasError: false },
+  ];
+  state.edges = [
+    { id: 'e1', source: 'start1', target: 'task1' },
+    { id: 'e2', source: 'task1', target: 'approval1' },
+    { id: 'e3', source: 'approval1', target: 'auto1' },
+    { id: 'e4', source: 'auto1', target: 'end1' },
+  ];
+  pushHistory();
+  render();
+}
+
+setupDragAndDrop();
+setupNodeInteraction();
+setupTabs();
+setupToolbar();
+setupKeyboard();
+loadSampleWorkflow();
+</script>
